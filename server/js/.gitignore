@@ -45,3 +45,4 @@ build/
 # Other
 .DS_Store
 package-lock.json
+/generated/prisma
