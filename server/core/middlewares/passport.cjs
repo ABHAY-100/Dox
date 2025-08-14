@@ -1,9 +1,9 @@
 // passport.js
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+const passport = require("passport");
+const { Strategy } =require("passport-google-oauth20");
 
 passport.use(
-  new GoogleStrategy(
+  new Strategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -24,4 +24,4 @@ passport.deserializeUser((obj, done) => {
   done(null, obj);
 });
 
-export default passport;
+module.exports = passport;

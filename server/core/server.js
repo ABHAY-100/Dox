@@ -3,25 +3,27 @@ const express = require("express");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const { PrismaClient } = require("@prisma/client");
-const passport = require("./middlewares/passport");
+const passport = require("passport");
 const session = require("express-session");
-const authRouter = require("./routes/auth.routes")
+const authRouter = require("./routes/auth.routes.cjs");
 const app = express();
 const prisma = new PrismaClient();
-
+require("./middlewares/passport.cjs");
 // Middlewares
 app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(express.json());
-app.use(session({
-  secret : process.env.SESSION_SECRET,
-  resave : false,
-  saveUninitialized: false,
-}))
-app.use(passport.initialize())
-app.use(passport.session())
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
 
-app.use("/auth" , authRouter)
+app.use("/auth", authRouter);
 
 // Test route
 app.get("/", async (req, res) => {

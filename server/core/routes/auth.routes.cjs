@@ -1,6 +1,6 @@
 const express = require("express");
-const passport = require("passport");
-const { onAuthCallback, logout } = require("../controllers/auth.controller");
+const passport = require("../middlewares/passport.cjs");
+const { oauthCallback, logout } = require("../controllers/auth.controller.cjs");
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ router.get(
 router.get(
   "/google/callback",
   passport.authenticate("google", { failureRedirect: "/login" }),
-  onAuthCallback // <-- call controller after successful login
+  oauthCallback
 );
 
 // Logout

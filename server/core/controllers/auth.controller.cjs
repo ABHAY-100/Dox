@@ -1,9 +1,7 @@
-import { PrismaClient } from "@prisma/client";
-import jwt from "jsonwebtoken";
-
+const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-
-export const oauthCallback = async (req, res) => {
+const jwt = require("jsonwebtoken");
+const oauthCallback = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Login failed", success: false });
@@ -18,12 +16,12 @@ export const oauthCallback = async (req, res) => {
     if (!user) {
       user = await prisma.user.create({
         data: {
-          email: profile.emails[0].value,
+          email: profile.emails?.[0]?.value || null,
           displayName: profile.displayName,
           provider: "google",
           googleId: profile.id,
           githubId: "",
-          photo: profile.photos[0].value,
+          photo: profile.photos?.[0]?.value || null,
         },
       });
     }
@@ -57,7 +55,7 @@ export const oauthCallback = async (req, res) => {
   }
 };
 
-export const getCurrentUser = async (req, res) => {
+const getCurrentUser = async (req, res) => {
   try {
     //uses user id
     const user = await prisma.user.findUnique({
@@ -77,7 +75,9 @@ export const getCurrentUser = async (req, res) => {
   }
 };
 
-export const logout = (req, res) => {
+const logout = (req, res) => {
   res.clearCookie("token");
   return res.json({ message: "Log out successful", success: true });
 };
+
+module.exports = { oauthCallback, logout };
