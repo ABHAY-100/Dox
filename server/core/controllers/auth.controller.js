@@ -8,22 +8,22 @@ export const oauthCallback = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ message: "Login failed", success: false });
     }
-
-    // Find existing user in DB
+    const profile = req.user;
+    //find user in db
     let user = await prisma.user.findUnique({
-      where: { email: req.user.email },
+      where: { email: profile.emails[0].value },
     });
 
     // If user doesn't exist, create them
     if (!user) {
       user = await prisma.user.create({
         data: {
-          googleId: req.user.provider === "google" ? req.user.id : null,
-          githubId: req.user.provider === "github" ? req.user.id : null,
-          displayName: req.user.displayName,
-          email: req.user.email,
-          photo: req.user.photo,
-          provider: req.user.provider,
+          email: profile.emails[0].value,
+          displayName: profile.displayName,
+          provider: "google",
+          googleId: profile.id,
+          githubId: "",
+          photo: profile.photos[0].value,
         },
       });
     }
