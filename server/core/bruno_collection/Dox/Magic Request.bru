@@ -1,0 +1,21 @@
+meta {
+  name: Magic Request
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/auth/magic/request
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": ""
+  }
+}
+
+settings {
+  encodeUrl: true
+}

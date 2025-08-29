@@ -1,0 +1,20 @@
+meta {
+  name: Magic Verify
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/auth/magic/verify?token&email
+  body: none
+  auth: inherit
+}
+
+params:query {
+  token: 
+  email: 
+}
+
+settings {
+  encodeUrl: true
+}
