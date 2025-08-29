@@ -1,9 +1,14 @@
 {
-  "name": "server",
+  "name": "dox_core",
   "version": "1.0.0",
-  "main": "server.js",
+  "main": "server.cjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.cjs",
+    "dev": "nodemon server.cjs",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:db:push": "prisma db push"
   },
   "author": "",
   "license": "ISC",

@@ -14,5 +14,5 @@ model User {
   displayName String?
   email       String? @unique
   photo       String?
-  provider    String // 'google' | 'github'
+  provider    String
 }

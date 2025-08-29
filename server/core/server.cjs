@@ -9,6 +9,7 @@ const authRouter = require("./routes/auth.routes.cjs");
 const app = express();
 const prisma = new PrismaClient();
 require("./middlewares/passport.cjs");
+
 // Middlewares
 app.use(cookieParser());
 app.use(morgan("dev"));
