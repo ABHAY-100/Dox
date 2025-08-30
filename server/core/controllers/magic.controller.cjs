@@ -1,29 +1,28 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+
 const { createClient } = require("redis");
 const redis = createClient({ url: process.env.REDIS_URL });
-
 redis.connect().catch(console.error);
 
 // Configure transporter
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT),
+  secure: process.env.SMTP_PORT === "465",
   auth: {
-    type: "OAuth2",
-    user: process.env.GMAIL_USER,
-    clientId: process.env.GMAIL_CLIENT_ID,
-    clientSecret: process.env.GMAIL_CLIENT_SECRET,
-    refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-    accessToken: process.env.GMAIL_ACCESS_TOKEN,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
 const sendMagicLinkEmail = async (email, link) => {
   const mailOptions = {
-    from: `"zero-day" <${process.env.GMAIL_USER}>`,
+    from: `"zero-day" <${process.env.SMTP_USER}>`,
     to: email,
     subject: "Your secure login link for Dox",
     html: `
@@ -40,6 +39,7 @@ const sendMagicLinkEmail = async (email, link) => {
     await transporter.sendMail(mailOptions);
   } catch (err) {
     console.error("Error sending magic link email:", err);
+    throw new Error("Failed to send magic link");
   }
 };
 
@@ -48,9 +48,30 @@ const requestMagicLink = async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: "Email required!" });
 
+  // Email format and length validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (
+    typeof email !== "string" ||
+    email.length > 254 ||
+    !emailRegex.test(email)
+  ) {
+    return res.status(400).json({ message: "Invalid email format!" });
+  }
+
+  // allow only 1 request per minute per email
+  const rateLimitKey = `magic:rate:${email}`;
+  const recentlyRequested = await redis.get(rateLimitKey);
+  if (recentlyRequested) {
+    return res.status(429).json({ message: "Please wait before requesting another magic link." });
+  }
+  await redis.set(rateLimitKey, "1", { EX: 60 });
+
   // Generate token
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresIn = 10 * 60; // 10 min
+  const tokenHash = crypto.createHmac("sha256", process.env.JWT_SECRET)
+    .update(token)
+    .digest("hex");
+  const expiresIn = 10 * 60; // 10 minutes
 
   // Find or create user in DB
   let user = await prisma.user.findUnique({ where: { email } });
@@ -59,40 +80,49 @@ const requestMagicLink = async (req, res) => {
       data: {
         email,
         provider: "magic",
-        displayName: "",
-        githubId: "",
-        googleId: "",
-        photo: "",
       },
     });
   }
 
   // Store token in Redis with expiry
-  await redis.set(`magic:${email}:${token}`, "valid", { EX: expiresIn });
+  await redis.set(
+    `magic:${tokenHash}`,
+    JSON.stringify({ email }),
+    { EX: expiresIn }
+  );
 
   // Send email
-  const link = `${
-    process.env.FRONTEND_URL
-  }/auth/magic/verify?token=${token}&email=${encodeURIComponent(email)}`;
-  await sendMagicLinkEmail(email, link);
+  const link = `${process.env.FRONTEND_URL}/auth/magic/verify?token=${token}`;
+  try {
+    await sendMagicLinkEmail(email, link);
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to send magic link", success: false });
+  }
 
-  res.json({ message: "Magic link sent", success: true });
+  res.json({ message: "If the email is registered, a magic link has been sent", success: true });
 };
 
 const verifyMagicLink = async (req, res) => {
-  const { token, email } = req.query;
-  if (!token || !email)
+  const { token } = req.query;
+  if (!token)
     return res.status(400).json({ message: "Invalid link!" });
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
+  // Recompute token hash
+  const tokenHash = crypto.createHmac("sha256", process.env.JWT_SECRET)
+    .update(token)
+    .digest("hex");
+  const redisKey = `magic:${tokenHash}`;
+
+  const data = await redis.get(redisKey);
+  if (!data) {
     return res.status(401).json({ message: "Invalid or expired magic link!" });
   }
 
-  // Check token in Redis
-  const redisKey = `magic:${email}:${token}`;
-  const valid = await redis.get(redisKey);
-  if (!valid) {
+  // Parse email from Redis
+  const email = JSON.parse(data).email;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
     return res.status(401).json({ message: "Invalid or expired magic link!" });
   }
 
@@ -105,7 +135,6 @@ const verifyMagicLink = async (req, res) => {
       id: user.id,
       name: user.displayName,
       email: user.email,
-      provider: user.provider,
     },
     process.env.JWT_SECRET,
     { expiresIn: "6h" }
