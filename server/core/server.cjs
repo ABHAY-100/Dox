@@ -9,7 +9,7 @@ const session = require("express-session");
 
 const authRouter = require("./routes/auth.routes.cjs");
 require("./middlewares/passport.middleware.cjs");
-
+const authMiddleware = require("./middlewares/auth.middleware.cjs");
 const app = express();
 const prisma = new PrismaClient();
 
@@ -26,14 +26,16 @@ app.use(
 );
 app.use(passport.initialize());
 app.use(passport.session());
-
 // Auth route
 app.use("/api/v1/auth", authRouter);
 
-// Ping route
-app.get("/api/v1/", async (_, res) => {
-  res.send("Dox is Alive!");
-});
+// Authorization middleware
+// app.use(authMiddleware);
+
+// // Ping route
+// app.get("/api/v1/", async (req, res) => {
+//   res.send("Dox is Alive!");
+// });
 
 // Start server
 app.listen(process.env.PORT, async () => {

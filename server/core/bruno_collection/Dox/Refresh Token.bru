@@ -1,0 +1,19 @@
+meta {
+  name: Refresh Token
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/api/v1/auth/refresh
+  body: none
+  auth: inherit
+}
+
+headers {
+  Cookie: refresh_token=b5d841a9d0e6c79703f3c547f1f1bb666292916dab21cd6d43f584d67b4e372782f0cc2550a07dd3
+}
+
+settings {
+  encodeUrl: true
+}
