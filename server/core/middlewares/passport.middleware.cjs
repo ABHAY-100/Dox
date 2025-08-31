@@ -20,11 +20,11 @@ passport.use(
       clientID: process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET,
       callbackURL: "/api/v1/auth/github/callback",
-      scope: ["user:email"]
+      scope: ["user:email", "read:user", "repo", "workflow" , "repo:status"]
     },
     async (accessToken, refreshToken, profile, done) => {
       // Just pass the GitHub profile forward — no DB logic here
-      return done(null, profile);
+      return done(null, { profile, accessToken, refreshToken });
     }
   )
 );

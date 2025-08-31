@@ -6,12 +6,23 @@ const cookieParser = require("cookie-parser");
 const { PrismaClient } = require("@prisma/client");
 const passport = require("passport");
 const session = require("express-session");
+const cors = require("cors");
 
 const authRouter = require("./routes/auth.routes.cjs");
+const githubRouter = require("./routes/github.routes.cjs");
 require("./middlewares/passport.middleware.cjs");
 const authMiddleware = require("./middlewares/auth.middleware.cjs");
+
 const app = express();
 const prisma = new PrismaClient();
+
+// CORS setup (for frontend on http://localhost:3000)
+// app.use(
+//   cors({
+//     origin: "http://localhost:3000", // frontend
+//     credentials: true, // allows cookies & sessions
+//   })
+// );
 
 // Middlewares
 app.use(cookieParser());
@@ -26,21 +37,14 @@ app.use(
 );
 app.use(passport.initialize());
 app.use(passport.session());
-// Auth route
+
+// Routes
 app.use("/api/v1/auth", authRouter);
-
-// Authorization middleware
-// app.use(authMiddleware);
-
-// // Ping route
-// app.get("/api/v1/", async (req, res) => {
-//   res.send("Dox is Alive!");
-// });
+app.use("/api/v1/core", authMiddleware, githubRouter);
 
 // Start server
 app.listen(process.env.PORT, async () => {
   try {
-    // Test Prisma connection
     await prisma.$connect();
     console.log("Prisma connected to MongoDB");
     console.log(`Server running on port ${process.env.PORT}`);

@@ -2,18 +2,29 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const getLoggedInUser = require("../utils/getLoggedInUser.cjs");
+const { encrypt } = require("../utils/crypto.cjs");
 const oauthCallback = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Login failed", success: false });
     }
 
-    const profile = req.user; // from passport-google/github
-    const provider = profile.provider; // "google" or "github"
-    let user = null;
+    console.log("OAuth profile:", req.user);
+    // If req.user has profile, use it; otherwise use req.user itself
+    const userData = req.user;
+    console.log("userData:", userData);
 
+    const profile = userData.profile || userData;
+    const githubAccessToken = userData.accessToken || null;
+    const githubRefreshToken = userData.refreshToken || null;
+    const provider = profile.provider; // "google" or "github"
     // Get email safely (Google always has, GitHub may not)
     const email = profile.emails?.[0]?.value || null;
+
+    console.log("GitHub Access Token:", githubAccessToken);
+
+    const encryptedToken = encrypt(githubAccessToken);
 
     // Find user
     if (email) {
@@ -27,11 +38,15 @@ const oauthCallback = async (req, res) => {
       user = await prisma.user.create({
         data: {
           email, // may be null
-          displayName: profile.displayName || profile.username,
+          displayName: profile.displayName || null,
+          githubName: profile.username || null,
           provider,
           googleId: provider === "google" ? profile.id : null,
           githubId: provider === "github" ? profile.id : null,
           photo: profile.photos?.[0]?.value || null,
+          githubAccessToken: encryptedToken.encryptedData || null,
+          githubTokenIV: encryptedToken.iv || null,
+          githubTokenAuthTag: encryptedToken.authTag || null,
         },
       });
     } else {
@@ -42,10 +57,56 @@ const oauthCallback = async (req, res) => {
           data: { googleId: profile.id, provider: "google" },
         });
       } else if (provider === "github" && !user.githubId) {
-        user = await prisma.user.update({
-          where: email ? { email } : { githubId: profile.id }, // fallback if email missing
-          data: { githubId: profile.id, provider: "github" },
-        });
+        const isUserLoggedIn = getLoggedInUser(req);
+        if (isUserLoggedIn) {
+          // Google user is logged in → connect GitHub
+          user = await prisma.user.update({
+            where: { id: isUserLoggedIn },
+            data: {
+              githubId: profile.id,
+              githubAccessToken: encryptedToken.encryptedData || null,
+              githubTokenIV: encryptedToken.iv || null,
+              githubTokenAuthTag: encryptedToken.authTag || null,
+              displayName: profile.displayName || null,
+              githubName: profile.username || null,
+              photo: profile.photos?.[0]?.value || null,
+            },
+          });
+        } else if (email) {
+          // No session → find by email
+          user = await prisma.user.findUnique({ where: { email } });
+          if (user) {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                githubId: profile.id,
+                githubAccessToken: encryptedToken.encryptedData || null,
+                githubTokenIV: encryptedToken.iv || null,
+                githubTokenAuthTag: encryptedToken.authTag || null,
+              },
+            });
+          } else {
+            // No user → create new
+            user = await prisma.user.create({
+              data: {
+                email,
+                displayName: profile.displayName || null,
+                githubName: profile.username || null,
+                provider: "github",
+                githubId: profile.id,
+                githubAccessToken: encryptedToken.encryptedData || null,
+                githubTokenIV: encryptedToken.iv || null,
+                githubTokenAuthTag: encryptedToken.authTag || null,
+                photo: profile.photos?.[0]?.value || null,
+              },
+            });
+          }
+        } else {
+          // fallback if email missing
+          user = await prisma.user.findUnique({
+            where: { githubId: profile.id },
+          });
+        }
       }
     }
 
@@ -61,7 +122,7 @@ const oauthCallback = async (req, res) => {
       where: email ? { email } : { githubId: profile.id },
       data: {
         refreshToken: refreshTokenHash,
-        refreshExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        refreshExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), /////////////////////////////////////////////////////////////////////////////////
       },
     });
 
@@ -106,6 +167,7 @@ const oauthCallback = async (req, res) => {
 const logout = (req, res) => {
   res.clearCookie("access_token");
   res.clearCookie("refresh_token");
+  req.session.destroy();
   return res.json({ message: "Log out successful", success: true });
 };
 const createNewToken = async (req, res) => {
@@ -121,14 +183,14 @@ const createNewToken = async (req, res) => {
     .update(refreshToken)
     .digest("hex");
 
-    console.log("hashed refreshToken:", refreshTokenHash);
+  console.log("hashed refreshToken:", refreshTokenHash);
 
   const user = await prisma.user.findFirst({
     where: { refreshToken: refreshTokenHash },
   });
   console.log("user from DB:", user);
 
-  if ( !user.refreshExpiry || user.refreshExpiry < new Date()) {
+  if (!user.refreshExpiry || user.refreshExpiry < new Date()) {
     console.log("here");
     return res
       .status(401)

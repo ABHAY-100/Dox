@@ -8,13 +8,34 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  googleId     String?
-  githubId     String?
-  displayName  String?
-  email        String?  @unique
-  refreshToken String?  
-  refreshExpiry DateTime? 
-  photo        String?
-  provider     String
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  googleId           String?
+  githubId           String?     
+  displayName        String?
+  githubName        String?
+  email              String?      @unique
+  provider           String       
+  photo              String?
+
+  // Your existing session management
+  refreshToken       String?  
+  refreshExpiry      DateTime?    
+
+  // GitHub OAuth token (non-expiring)
+  githubAccessToken  String?      // store GitHub access token
+  githubTokenIV String?
+  githubTokenAuthTag String?
+}
+
+
+model UserRepo{
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  repoId String
+  name      String   // Repo name
+  fullName  String   // owner/repo
+  private   Boolean  // whether repo is private
+  connected Boolean  @default(false) // always false initially
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
