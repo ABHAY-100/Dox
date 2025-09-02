@@ -4,7 +4,6 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const getLoggedInUser = require("../utils/getLoggedInUser.cjs");
 const { encrypt } = require("../utils/crypto.cjs");
-
 const oauthCallback = async (req, res) => {
   try {
     if (!req.user) {
@@ -169,6 +168,8 @@ const logout = (req, res) => {
   res.clearCookie("access_token");
   res.clearCookie("refresh_token");
 
+  req.session.destroy();
+  
   return res.json({ message: "Log out successful", success: true });
 };
 
