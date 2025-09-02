@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const getLoggedInUser = require("../utils/getLoggedInUser.cjs");
 const { encrypt } = require("../utils/crypto.cjs");
+
 const oauthCallback = async (req, res) => {
   try {
     if (!req.user) {
@@ -167,15 +168,14 @@ const oauthCallback = async (req, res) => {
 const logout = (req, res) => {
   res.clearCookie("access_token");
   res.clearCookie("refresh_token");
-  req.session.destroy();
+
   return res.json({ message: "Log out successful", success: true });
 };
+
 const createNewToken = async (req, res) => {
   const refreshToken = req.cookies.refresh_token;
-  console.log("refreshToken from cookie:", refreshToken);
-
   if (!refreshToken) {
-    return res.status(401).json({ message: "Unauthorized", success: false });
+    return res.status(401).json({ message: "Unauthorized!", success: false });
   }
 
   const refreshTokenHash = crypto
@@ -183,18 +183,17 @@ const createNewToken = async (req, res) => {
     .update(refreshToken)
     .digest("hex");
 
-  console.log("hashed refreshToken:", refreshTokenHash);
-
   const user = await prisma.user.findFirst({
     where: { refreshToken: refreshTokenHash },
   });
-  console.log("user from DB:", user);
 
   if (!user.refreshExpiry || user.refreshExpiry < new Date()) {
-    console.log("here");
+    res.clearCookie("access_token");
+    res.clearCookie("refresh_token");
+
     return res
       .status(401)
-      .json({ message: "Refresh token expired", success: false });
+      .json({ message: "Refresh token expired!", success: false });
   }
 
   // Issue new access token
@@ -216,7 +215,7 @@ const createNewToken = async (req, res) => {
     maxAge: 60 * 60 * 1000, // 1h
   });
 
-  return res.json({ message: "New access token created", success: true });
+  return res.json({ message: "New access token created!", success: true });
 };
 
 module.exports = { oauthCallback, logout, createNewToken };
