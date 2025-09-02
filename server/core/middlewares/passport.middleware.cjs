@@ -1,6 +1,8 @@
 const passport = require("passport");
+
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const GithubStrategy = require("passport-github2").Strategy;
+
 passport.use(
   new GoogleStrategy(
     {
@@ -9,8 +11,8 @@ passport.use(
       callbackURL: "/api/v1/auth/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
-      // Just pass the Google profile forward — no DB logic here
-      return done(null, profile);
+      // Pass the Google profile forward
+      return done(null, {profile, accessToken, refreshToken});
     }
   )
 );
@@ -23,11 +25,12 @@ passport.use(
       scope: ["user:email", "read:user", "repo", "workflow" , "repo:status"]
     },
     async (accessToken, refreshToken, profile, done) => {
-      // Just pass the GitHub profile forward — no DB logic here
+      // Pass the GitHub profile forward
       return done(null, { profile, accessToken, refreshToken });
     }
   )
 );
+
 passport.serializeUser((user, done) => {
   done(null, user);
 });

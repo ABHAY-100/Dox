@@ -83,7 +83,7 @@ const connectRepo = async (req, res) => {
         .json({ message: "User not found", success: false });
     }
 
-    console.log(userRecord);
+    // console.log(userRecord);
 
     // Decrypt the GitHub access token
     const githubAccessToken = decrypt(
@@ -102,7 +102,7 @@ const connectRepo = async (req, res) => {
       repo: repoName,
     });
 
-    console.log("repo ", repo);
+    // console.log("repo ", repo);
     // Save the repository information to the database
     const savedRepo = await prisma.userRepo.create({
       data: {

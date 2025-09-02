@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ override: true, debug: false });
 
 const express = require("express");
 const morgan = require("morgan");
@@ -16,13 +16,13 @@ const authMiddleware = require("./middlewares/auth.middleware.cjs");
 const app = express();
 const prisma = new PrismaClient();
 
-// CORS setup (for frontend on http://localhost:3000)
-// app.use(
-//   cors({
-//     origin: "http://localhost:3000", // frontend
-//     credentials: true, // allows cookies & sessions
-//   })
-// );
+// CORS setup
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
 
 // Middlewares
 app.use(cookieParser());
@@ -41,6 +41,10 @@ app.use(passport.session());
 // Routes
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/core", authMiddleware, githubRouter);
+
+app.get("/api/v1", (_, res) => {
+  return res.json({ success: true });
+});
 
 // Start server
 app.listen(process.env.PORT, async () => {

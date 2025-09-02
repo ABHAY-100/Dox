@@ -2,8 +2,6 @@ const crypto = require("crypto");
 
 const ALGORITHM = "aes-256-gcm";
 const KEY = Buffer.from(process.env.ENCRYPTION_KEY, "hex");
-//console.log(KEY.length); // must be 32
-
 const IV_LENGTH = 12;
 
 // Encrypt text
@@ -33,6 +31,7 @@ function decrypt(encryptedData, ivHex, authTagHex) {
     decipher.update(Buffer.from(encryptedData, "hex")),
     decipher.final(),
   ]);
+
   return decrypted.toString("utf8");
 }
 

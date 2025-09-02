@@ -38,17 +38,17 @@ const sendMagicLinkEmail = async (email, link) => {
   await transporter.sendMail(mailOptions);
 };
 
-// 1. Request Magic Link
+// Request Magic Link
 const requestMagicLink = async (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ message: "Email required!" });
+  if (!email) return res.status(400).json({ message: "Email required!", success: false });
 
   // Rate limit → 1 request per minute
   const rateLimitKey = `magic:rate:${email}`;
   if (await redis.get(rateLimitKey)) {
     return res
       .status(429)
-      .json({ message: "Please wait before requesting another magic link." });
+      .json({ message: "Please wait before requesting another magic link!", success: false });
   }
   await redis.set(rateLimitKey, "1", { EX: 60 });
 
@@ -82,7 +82,7 @@ const requestMagicLink = async (req, res) => {
   } catch (err) {
     return res
       .status(500)
-      .json({ message: "Failed to send magic link", success: false });
+      .json({ message: "Failed to send magic link!", success: false });
   }
 
   res.json({
@@ -91,10 +91,10 @@ const requestMagicLink = async (req, res) => {
   });
 };
 
-// 2. Verify Magic Link → Issue AT + RT
+// Verify Magic Link
 const verifyMagicLink = async (req, res) => {
   const { token } = req.query;
-  if (!token) return res.status(400).json({ message: "Invalid link!" });
+  if (!token) return res.status(400).json({ message: "Invalid link!", success: false });
 
   const tokenHash = crypto
     .createHmac("sha256", process.env.JWT_SECRET)
@@ -104,12 +104,12 @@ const verifyMagicLink = async (req, res) => {
   const data = await redis.get(redisKey);
 
   if (!data)
-    return res.status(401).json({ message: "Invalid or expired magic link!" });
+    return res.status(401).json({ message: "Invalid or expired magic link!", success: false });
 
   const email = JSON.parse(data).email;
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user)
-    return res.status(401).json({ message: "Invalid or expired magic link!" });
+    return res.status(401).json({ message: "Invalid or expired magic link!", success: false });
 
   // Delete magic link (one-time use)
   await redis.del(redisKey);
