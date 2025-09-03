@@ -50,10 +50,8 @@ app.get("/api/v1", (_, res) => {
 app.listen(process.env.PORT, async () => {
   try {
     await prisma.$connect();
-    console.log("Prisma connected to MongoDB");
     console.log(`Server running on port ${process.env.PORT}`);
   } catch (err) {
-    console.error("Prisma connection error:", err);
     process.exit(1);
   }
 });

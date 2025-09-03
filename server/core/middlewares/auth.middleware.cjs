@@ -15,7 +15,7 @@ const authMiddleware = (req, res, next) => {
 
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Unauthorized!" });
+    return res.status(401).json({ message: "Unauthorized!", success: false });
   }
 };
 

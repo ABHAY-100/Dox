@@ -1,11 +1,11 @@
 meta {
-  name: Get All Repos
+  name: Disconnect an Repo
   type: http
-  seq: 7
+  seq: 9
 }
 
-get {
-  url: {{base_url}}/api/v1/core/repos
+post {
+  url: {{base_url}}/api/v1/core/disconnect-repo
   body: json
   auth: inherit
 }

@@ -1,128 +1,188 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+
 const getLoggedInUser = require("../utils/getLoggedInUser.cjs");
 const { encrypt } = require("../utils/crypto.cjs");
+
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+
 const oauthCallback = async (req, res) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ message: "Login failed", success: false });
+      return res.status(401).json({ message: "Login failed!", success: false });
     }
 
-    console.log("OAuth profile:", req.user);
-    // If req.user has profile, use it; otherwise use req.user itself
     const userData = req.user;
-    console.log("userData:", userData);
-
     const profile = userData.profile || userData;
-    const githubAccessToken = userData.accessToken || null;
-    const githubRefreshToken = userData.refreshToken || null;
-    const provider = profile.provider; // "google" or "github"
-    // Get email safely (Google always has, GitHub may not)
+    const provider = profile.provider;
     const email = profile.emails?.[0]?.value || null;
+    const providerId = profile.id;
 
-    console.log("GitHub Access Token:", githubAccessToken);
+    // Encrypt GitHub access token if available
+    const githubAccessToken = userData.accessToken || null;
+    const encryptedToken = githubAccessToken ? encrypt(githubAccessToken) : null;
 
-    const encryptedToken = encrypt(githubAccessToken);
+    // Check if user is already logged in
+    const loggedInUserId = getLoggedInUser(req);
 
-    // Find user
-    if (email) {
-      user = await prisma.user.findUnique({ where: { email } });
-    } else if (provider === "github") {
-      user = await prisma.user.findUnique({ where: { githubId: profile.id } });
+    let user = null;
+
+    // Strategy 1: Find existing user by email or provider ID
+    if (email || provider === "github") {
+      const whereClause = email
+        ? { email }
+        : { githubId: providerId };
+
+      user = await prisma.user.findUnique({ where: whereClause });
     }
 
-    // Create user if not exists
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email, // may be null
-          displayName: profile.displayName || null,
-          githubName: profile.username || null,
-          provider,
-          googleId: provider === "google" ? profile.id : null,
-          githubId: provider === "github" ? profile.id : null,
-          photo: profile.photos?.[0]?.value || null,
-          githubAccessToken: encryptedToken.encryptedData || null,
-          githubTokenIV: encryptedToken.iv || null,
-          githubTokenAuthTag: encryptedToken.authTag || null,
-        },
-      });
-    } else {
-      // Update missing IDs if needed
+    if (user) {
+      // User exists - update with new provider info if needed
+      const updateData = {};
+
       if (provider === "google" && !user.googleId) {
-        user = await prisma.user.update({
-          where: { email: email }, // safe: Google always gives email
-          data: { googleId: profile.id, provider: "google" },
-        });
-      } else if (provider === "github" && !user.githubId) {
-        const isUserLoggedIn = getLoggedInUser(req);
-        if (isUserLoggedIn) {
-          // Google user is logged in → connect GitHub
-          user = await prisma.user.update({
-            where: { id: isUserLoggedIn },
-            data: {
-              githubId: profile.id,
-              githubAccessToken: encryptedToken.encryptedData || null,
-              githubTokenIV: encryptedToken.iv || null,
-              githubTokenAuthTag: encryptedToken.authTag || null,
-              displayName: profile.displayName || null,
-              githubName: profile.username || null,
-              photo: profile.photos?.[0]?.value || null,
-            },
-          });
-        } else if (email) {
-          // No session → find by email
-          user = await prisma.user.findUnique({ where: { email } });
-          if (user) {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: {
-                githubId: profile.id,
-                githubAccessToken: encryptedToken.encryptedData || null,
-                githubTokenIV: encryptedToken.iv || null,
-                githubTokenAuthTag: encryptedToken.authTag || null,
-              },
-            });
-          } else {
-            // No user → create new
-            user = await prisma.user.create({
-              data: {
-                email,
-                displayName: profile.displayName || null,
-                githubName: profile.username || null,
-                provider: "github",
-                githubId: profile.id,
-                githubAccessToken: encryptedToken.encryptedData || null,
-                githubTokenIV: encryptedToken.iv || null,
-                githubTokenAuthTag: encryptedToken.authTag || null,
-                photo: profile.photos?.[0]?.value || null,
-              },
-            });
-          }
-        } else {
-          // fallback if email missing
-          user = await prisma.user.findUnique({
-            where: { githubId: profile.id },
-          });
+        updateData.googleId = providerId;
+        if (!user.provider || user.provider !== "google") {
+          updateData.provider = "google";
         }
+      } else if (provider === "github") {
+        // Always update GitHub info when available
+        updateData.githubId = providerId;
+        updateData.displayName = profile.displayName || user.displayName;
+        updateData.githubName = profile.username || user.githubName;
+
+        if (encryptedToken) {
+          updateData.githubAccessToken = encryptedToken.encryptedData;
+          updateData.githubTokenIV = encryptedToken.iv;
+          updateData.githubTokenAuthTag = encryptedToken.authTag;
+        }
+
+        if (!user.provider || user.provider !== "github") {
+          updateData.provider = "github";
+        }
+      }
+
+      // Update photo if not present
+      if (!user.photo && profile.photos?.[0]?.value) {
+        updateData.photo = profile.photos[0].value;
+      }
+
+      // Only update if there are changes
+      if (Object.keys(updateData).length > 0) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: updateData,
+        });
+      }
+    } else if (loggedInUserId) {
+      // Strategy 2: User is logged in but connecting a new provider
+      try {
+        const updateData = {};
+
+        if (provider === "google") {
+          updateData.googleId = providerId;
+          if (email && !user?.email) {
+            updateData.email = email;
+          }
+          // Update provider if user was created via magic link
+          const existingUser = await prisma.user.findUnique({
+            where: { id: loggedInUserId },
+            select: { provider: true }
+          });
+          if (existingUser?.provider === "magic") {
+            updateData.provider = "google";
+          }
+        } else if (provider === "github") {
+          updateData.githubId = providerId;
+          updateData.displayName = profile.displayName;
+          updateData.githubName = profile.username;
+
+          if (encryptedToken) {
+            updateData.githubAccessToken = encryptedToken.encryptedData;
+            updateData.githubTokenIV = encryptedToken.iv;
+            updateData.githubTokenAuthTag = encryptedToken.authTag;
+          }
+
+          // Update email if GitHub provides one and user doesn't have one
+          if (email) {
+            const existingUser = await prisma.user.findUnique({
+              where: { id: loggedInUserId },
+              select: { email: true, provider: true }
+            });
+
+            if (!existingUser.email) {
+              updateData.email = email;
+            }
+
+            // Update provider if user was created via magic link
+            if (existingUser?.provider === "magic") {
+              updateData.provider = "github";
+            }
+          }
+        }
+
+        // Update photo if not present
+        if (profile.photos?.[0]?.value) {
+          const existingUser = await prisma.user.findUnique({
+            where: { id: loggedInUserId },
+            select: { photo: true }
+          });
+
+          if (!existingUser.photo) {
+            updateData.photo = profile.photos[0].value;
+          }
+        }
+
+        user = await prisma.user.update({
+          where: { id: loggedInUserId },
+          data: updateData,
+        });
+      } catch (updateError) {
+        // If update fails (e.g., email conflict), fall through to create new user
+        console.warn("Failed to update existing user:", updateError.message);
+        user = null;
       }
     }
 
-    // Create refresh token
+    // Strategy 3: Create new user
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          displayName: profile.displayName || null,
+          githubName: profile.username || null,
+          provider,
+          googleId: provider === "google" ? providerId : null,
+          githubId: provider === "github" ? providerId : null,
+          photo: profile.photos?.[0]?.value || null,
+          githubAccessToken: encryptedToken?.encryptedData || null,
+          githubTokenIV: encryptedToken?.iv || null,
+          githubTokenAuthTag: encryptedToken?.authTag || null,
+        },
+      });
+    }
+
+    if (!user) {
+      return res.status(500).json({
+        message: "Failed to create or find user",
+        success: false
+      });
+    }
+
+    // Generate tokens
     const refreshToken = crypto.randomBytes(40).toString("hex");
     const refreshTokenHash = crypto
       .createHmac("sha256", process.env.JWT_SECRET)
       .update(refreshToken)
       .digest("hex");
 
-    // Save refresh token safely
+    // Update user with refresh token
     await prisma.user.update({
-      where: email ? { email } : { githubId: profile.id },
+      where: { id: user.id },
       data: {
         refreshToken: refreshTokenHash,
-        refreshExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), /////////////////////////////////////////////////////////////////////////////////
+        refreshExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       },
     });
 
@@ -143,24 +203,27 @@ const oauthCallback = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 1000,
+      maxAge: 60 * 60 * 1000, // 1h
     });
 
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
     return res.status(200).json({
-      user,
       message: "Login successful",
       success: true,
     });
+
   } catch (err) {
     console.error("OAuth callback error:", err);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({
+      message: "Internal Server Error",
+      success: false
+    });
   }
 };
 
@@ -168,55 +231,75 @@ const logout = (req, res) => {
   res.clearCookie("access_token");
   res.clearCookie("refresh_token");
 
-  req.session.destroy();
-  
+  if (req.session) {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Session destroy error:", err);
+      }
+    });
+  }
+
   return res.json({ message: "Log out successful", success: true });
 };
 
 const createNewToken = async (req, res) => {
-  const refreshToken = req.cookies.refresh_token;
-  if (!refreshToken) {
-    return res.status(401).json({ message: "Unauthorized!", success: false });
+  try {
+    const refreshToken = req.cookies.refresh_token;
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Unauthorized!", success: false });
+    }
+
+    const refreshTokenHash = crypto
+      .createHmac("sha256", process.env.JWT_SECRET)
+      .update(refreshToken)
+      .digest("hex");
+
+    const user = await prisma.user.findFirst({
+      where: {
+        refreshToken: refreshTokenHash,
+        refreshExpiry: {
+          gt: new Date() // Check expiry in the query
+        }
+      },
+    });
+
+    if (!user) {
+      // Clear invalid cookies
+      res.clearCookie("access_token");
+      res.clearCookie("refresh_token");
+
+      return res
+        .status(401)
+        .json({ message: "Invalid or expired refresh token!", success: false });
+    }
+
+    // Issue new access token
+    const accessToken = jwt.sign(
+      {
+        id: user.id,
+        name: user.displayName,
+        email: user.email,
+        provider: user.provider,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.cookie("access_token", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 60 * 60 * 1000, // 1h
+    });
+
+    return res.json({ message: "New access token created!", success: true });
+  } catch (err) {
+    console.error("Token refresh error:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+      success: false
+    });
   }
-
-  const refreshTokenHash = crypto
-    .createHmac("sha256", process.env.JWT_SECRET)
-    .update(refreshToken)
-    .digest("hex");
-
-  const user = await prisma.user.findFirst({
-    where: { refreshToken: refreshTokenHash },
-  });
-
-  if (!user.refreshExpiry || user.refreshExpiry < new Date()) {
-    res.clearCookie("access_token");
-    res.clearCookie("refresh_token");
-
-    return res
-      .status(401)
-      .json({ message: "Refresh token expired!", success: false });
-  }
-
-  // Issue new access token
-  const accessToken = jwt.sign(
-    {
-      id: user.id,
-      name: user.displayName,
-      email: user.email,
-      provider: user.provider,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" }
-  );
-
-  res.cookie("access_token", accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 60 * 60 * 1000, // 1h
-  });
-
-  return res.json({ message: "New access token created!", success: true });
 };
 
 module.exports = { oauthCallback, logout, createNewToken };

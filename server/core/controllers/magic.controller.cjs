@@ -156,7 +156,7 @@ const verifyMagicLink = async (req, res) => {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7d
   });
 
-  res.json({ user, message: "Login successful", success: true });
+  res.json({ message: "Login successful", success: true });
 };
 
 module.exports = { requestMagicLink, verifyMagicLink };

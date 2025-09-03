@@ -1,7 +1,10 @@
+const { Octokit } = require("octokit");
+
+const { decrypt } = require("../utils/crypto.cjs");
+
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const { Octokit } = require("octokit");
-const { decrypt } = require("../utils/crypto.cjs");
+
 const getAllRepos = async (req, res) => {
   try {
     if (!req.user) {
@@ -34,18 +37,17 @@ const getAllRepos = async (req, res) => {
       userRecord.githubTokenAuthTag
     );
 
-    //console.log("Decrypted GitHub Access Token:", githubAccessToken);
-
     const octokit = new Octokit({
       auth: githubAccessToken,
     });
+
     const repos = await octokit.rest.repos.listForAuthenticatedUser();
     if (!repos || repos.length === 0) {
       return res
         .status(200)
         .json({ message: "No repositories found", success: true });
     }
-    //console.log("User's GitHub Repositories:", repos);
+
     return res.status(200).json({
       repos: repos.data,
       success: true,
@@ -83,8 +85,6 @@ const connectRepo = async (req, res) => {
         .json({ message: "User not found", success: false });
     }
 
-    // console.log(userRecord);
-
     // Decrypt the GitHub access token
     const githubAccessToken = decrypt(
       userRecord.githubAccessToken,
@@ -102,13 +102,29 @@ const connectRepo = async (req, res) => {
       repo: repoName,
     });
 
-    // console.log("repo ", repo);
+    // Check if repo is already connected
+    const existingRepo = await prisma.userRepo.findFirst({
+      where: {
+        userId: userRecord.id,
+        repoId: repo.data.id.toString(),
+        connected: true,
+      },
+    });
+
+    if (existingRepo) {
+      return res.status(409).json({
+        message: "Repository already connected",
+        success: false,
+        repo: existingRepo,
+      });
+    }
+
     // Save the repository information to the database
     const savedRepo = await prisma.userRepo.create({
       data: {
-        userId: userRecord.id, // MongoDB ObjectId (User)
-        repoId: repo.data.id.toString(), // GitHub repo ID (convert to string if needed)
-        name: repo.data.name, // Repo name only
+        userId: userRecord.id,
+        repoId: repo.data.id.toString(), // GitHub repo ID
+        name: repo.data.name, // Repo name
         fullName: repo.data.full_name, // owner/repo
         private: repo.data.private,
         connected: true, // set true since connected
@@ -167,7 +183,7 @@ const disconnectRepo = async (req, res) => {
     await prisma.userRepo.deleteMany({
       where: {
         repoId: repoId,
-        userId: userRecord.id, // make sure you only delete for this user
+        userId: userRecord.id,
       },
     });
 
@@ -183,8 +199,47 @@ const disconnectRepo = async (req, res) => {
   }
 };
 
+const getConnectedRepos = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized", success: false });
+    }
+
+    // Find the user
+    const userRecord = await prisma.user.findUnique({
+      where: { email: req.user.email },
+    });
+    if (!userRecord) {
+      return res
+        .status(404)
+        .json({ message: "User not found", success: false });
+    }
+
+    // Fetch all connected repos for the user
+    const repos = await prisma.userRepo.findMany({
+      where: {
+        userId: userRecord.id,
+        connected: true,
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    return res.status(200).json({
+      repos,
+      success: true,
+      message: "Connected repositories fetched successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error fetching connected repositories", success: false });
+  }
+};
+
 module.exports = {
   getAllRepos,
   connectRepo,
-  disconnectRepo
+  disconnectRepo,
+  getConnectedRepos
 };
