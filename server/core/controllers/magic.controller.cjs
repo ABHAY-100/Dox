@@ -21,6 +21,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendMagicLinkEmail = async (email, link) => {
+  console.log("mail sending" );
   const mailOptions = {
     from: `"zero-day" <${process.env.SMTP_USER}>`,
     to: email,
@@ -36,12 +37,13 @@ const sendMagicLinkEmail = async (email, link) => {
   };
 
   await transporter.sendMail(mailOptions);
+  console.log("mail sent");
 };
 
 // Request Magic Link
 const requestMagicLink = async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ message: "Email required!", success: false });
+  const { displayName ,email } = req.body;
+  if (!email || !displayName) return res.status(400).json({ message: "Email and displayName required!", success: false });
 
   // Rate limit → 1 request per minute
   const rateLimitKey = `magic:rate:${email}`;
@@ -65,6 +67,7 @@ const requestMagicLink = async (req, res) => {
     user = await prisma.user.create({
       data: {
         email,
+        displayName,
         provider: "magic",
       },
     });

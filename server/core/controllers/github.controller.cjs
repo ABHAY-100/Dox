@@ -39,10 +39,12 @@ const getAllRepos = async (req, res) => {
 
     const octokit = new Octokit({
       auth: githubAccessToken,
+      visibility: "all",
+      per_page: 100,
     });
 
     const repos = await octokit.rest.repos.listForAuthenticatedUser();
-    if (!repos || repos.length === 0) {
+    if (!repos || repos.data.length === 0) {
       return res
         .status(200)
         .json({ message: "No repositories found", success: true });
@@ -94,6 +96,7 @@ const connectRepo = async (req, res) => {
 
     const octokit = new Octokit({
       auth: githubAccessToken,
+      visibility: "all",
     });
 
     // Get the repository information using octokit
@@ -233,7 +236,10 @@ const getConnectedRepos = async (req, res) => {
     console.log(error);
     return res
       .status(500)
-      .json({ message: "Error fetching connected repositories", success: false });
+      .json({
+        message: "Error fetching connected repositories",
+        success: false,
+      });
   }
 };
 
@@ -241,5 +247,5 @@ module.exports = {
   getAllRepos,
   connectRepo,
   disconnectRepo,
-  getConnectedRepos
+  getConnectedRepos,
 };
