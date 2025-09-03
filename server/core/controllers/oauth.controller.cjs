@@ -21,7 +21,9 @@ const oauthCallback = async (req, res) => {
 
     // Encrypt GitHub access token if available
     const githubAccessToken = userData.accessToken || null;
-    const encryptedToken = githubAccessToken ? encrypt(githubAccessToken) : null;
+    const encryptedToken = githubAccessToken
+      ? encrypt(githubAccessToken)
+      : null;
 
     // Check if user is already logged in
     const loggedInUserId = getLoggedInUser(req);
@@ -30,9 +32,7 @@ const oauthCallback = async (req, res) => {
 
     // Strategy 1: Find existing user by email or provider ID
     if (email || provider === "github") {
-      const whereClause = email
-        ? { email }
-        : { githubId: providerId };
+      const whereClause = email ? { email } : { githubId: providerId };
 
       user = await prisma.user.findUnique({ where: whereClause });
     }
@@ -88,7 +88,7 @@ const oauthCallback = async (req, res) => {
           // Update provider if user was created via magic link
           const existingUser = await prisma.user.findUnique({
             where: { id: loggedInUserId },
-            select: { provider: true }
+            select: { provider: true },
           });
           if (existingUser?.provider === "magic") {
             updateData.provider = "google";
@@ -108,7 +108,7 @@ const oauthCallback = async (req, res) => {
           if (email) {
             const existingUser = await prisma.user.findUnique({
               where: { id: loggedInUserId },
-              select: { email: true, provider: true }
+              select: { email: true, provider: true },
             });
 
             if (!existingUser.email) {
@@ -126,7 +126,7 @@ const oauthCallback = async (req, res) => {
         if (profile.photos?.[0]?.value) {
           const existingUser = await prisma.user.findUnique({
             where: { id: loggedInUserId },
-            select: { photo: true }
+            select: { photo: true },
           });
 
           if (!existingUser.photo) {
@@ -137,6 +137,12 @@ const oauthCallback = async (req, res) => {
         user = await prisma.user.update({
           where: { id: loggedInUserId },
           data: updateData,
+        });
+
+        // user connected to github - function ends here (No token regeneration needed)
+        return res.status(200).json({
+          message: "GitHub connected successfully",
+          success: true,
         });
       } catch (updateError) {
         // If update fails (e.g., email conflict), fall through to create new user
@@ -166,7 +172,7 @@ const oauthCallback = async (req, res) => {
     if (!user) {
       return res.status(500).json({
         message: "Failed to create or find user",
-        success: false
+        success: false,
       });
     }
 
@@ -192,7 +198,6 @@ const oauthCallback = async (req, res) => {
         id: user.id,
         name: user.displayName,
         email: user.email,
-        provider: user.provider,
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
@@ -217,12 +222,11 @@ const oauthCallback = async (req, res) => {
       message: "Login successful",
       success: true,
     });
-
   } catch (err) {
     console.error("OAuth callback error:", err);
     return res.status(500).json({
       message: "Internal Server Error",
-      success: false
+      success: false,
     });
   }
 };
@@ -244,26 +248,42 @@ const logout = (req, res) => {
 
 const createNewToken = async (req, res) => {
   try {
+    const oldAccessToken = req.cookies.access_token;
     const refreshToken = req.cookies.refresh_token;
-    if (!refreshToken) {
+   
+    if (!refreshToken || !oldAccessToken) {
       return res.status(401).json({ message: "Unauthorized!", success: false });
     }
 
+    // decode access token and get user id
+    let decodedToken = null;
+    try {
+      decodedToken = jwt.verify(oldAccessToken, process.env.JWT_SECRET, {
+        ignoreExpiration: true,
+      });
+    } catch (jwtError) {
+      res.clearCookie("access_token");
+      res.clearCookie("refresh_token");
+      return res
+        .status(401)
+        .json({ message: "Invalid access token!", success: false });
+    }
+    //hash the token
     const refreshTokenHash = crypto
       .createHmac("sha256", process.env.JWT_SECRET)
       .update(refreshToken)
       .digest("hex");
 
-    const user = await prisma.user.findFirst({
-      where: {
-        refreshToken: refreshTokenHash,
-        refreshExpiry: {
-          gt: new Date() // Check expiry in the query
-        }
-      },
+    //fetch user from db using id
+    const user = await prisma.user.findUnique({
+      where: { id: decodedToken.id },
     });
-
-    if (!user) {
+    //check if user exists or tokens are valid
+    if (
+      !user ||
+      user.refreshToken !== refreshTokenHash ||
+      user.refreshExpiry <= new Date()
+    ) {
       // Clear invalid cookies
       res.clearCookie("access_token");
       res.clearCookie("refresh_token");
@@ -273,18 +293,35 @@ const createNewToken = async (req, res) => {
         .json({ message: "Invalid or expired refresh token!", success: false });
     }
 
+    // Generate NEW refresh token (rotation)
+    const newRefreshToken = crypto.randomBytes(40).toString("hex");
+    const newRefreshTokenHash = crypto
+      .createHmac("sha256", process.env.JWT_SECRET)
+      .update(newRefreshToken)
+      .digest("hex");
+
+    // Update user with NEW refresh token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshToken: newRefreshTokenHash,
+        refreshExpiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
+
     // Issue new access token
     const accessToken = jwt.sign(
       {
         id: user.id,
         name: user.displayName,
         email: user.email,
-        provider: user.provider,
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
+    // Set BOTH new tokens as cookies
     res.cookie("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -292,14 +329,25 @@ const createNewToken = async (req, res) => {
       maxAge: 60 * 60 * 1000, // 1h
     });
 
-    return res.json({ message: "New access token created!", success: true });
+    res.cookie("refresh_token", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return res.json({ message: "New tokens created!", success: true });
   } catch (err) {
     console.error("Token refresh error:", err);
+
+    // Clear cookies on error
+    res.clearCookie("access_token");
+    res.clearCookie("refresh_token");
+
     return res.status(500).json({
       message: "Internal server error",
-      success: false
+      success: false,
     });
   }
 };
-
 module.exports = { oauthCallback, logout, createNewToken };

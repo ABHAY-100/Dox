@@ -38,7 +38,7 @@ router.get(
 );
 
 // get new access token
-router.post("/refresh", createNewToken);
+router.get("/refresh", createNewToken);
 
 // Logout
 router.get("/logout", logout);

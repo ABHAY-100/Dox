@@ -10,6 +10,7 @@ const cors = require("cors");
 
 const authRouter = require("./routes/auth.routes.cjs");
 const githubRouter = require("./routes/github.routes.cjs");
+const userRoutes = require("./routes/profile.routes.cjs");
 require("./middlewares/passport.middleware.cjs");
 const authMiddleware = require("./middlewares/auth.middleware.cjs");
 
@@ -41,6 +42,7 @@ app.use(passport.session());
 // Routes
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/core", authMiddleware, githubRouter);
+app.use("/api/v1/profile", authMiddleware, userRoutes);
 
 app.get("/api/v1", (_, res) => {
   return res.json({ success: true });

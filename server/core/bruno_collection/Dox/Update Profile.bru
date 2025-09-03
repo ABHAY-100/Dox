@@ -1,0 +1,26 @@
+meta {
+  name: Update Profile
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{base_url}}/api/v1/profile/update-profile
+  body: json
+  auth: inherit
+}
+
+headers {
+  Cookie: access_token=""
+}
+
+body:json {
+  {
+    "displayName":"sreyas",
+    "photo":null
+  }
+}
+
+settings {
+  encodeUrl: true
+}
