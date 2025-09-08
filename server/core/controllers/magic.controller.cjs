@@ -21,7 +21,6 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendMagicLinkEmail = async (email, link) => {
-  console.log("mail sending" );
   const mailOptions = {
     from: `"zero-day" <${process.env.SMTP_USER}>`,
     to: email,
@@ -37,7 +36,6 @@ const sendMagicLinkEmail = async (email, link) => {
   };
 
   await transporter.sendMail(mailOptions);
-  console.log("mail sent");
 };
 
 // Request Magic Link
