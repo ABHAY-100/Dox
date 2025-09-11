@@ -7,7 +7,6 @@ const {
   updateProfile,
 } = require("../controllers/profile.controller.cjs");
 
-
 router.get("/get-profile", getProfile);
 router.post("/update-profile", updateProfile);
 

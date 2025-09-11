@@ -20,7 +20,6 @@ model User {
   refreshToken  String?
   refreshExpiry DateTime?
 
-  // GitHub OAuth token
   githubAccessToken  String?
   githubTokenIV      String?
   githubTokenAuthTag String?

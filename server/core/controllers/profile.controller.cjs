@@ -5,6 +5,7 @@ const getProfile = async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized", success: false });
   }
+
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -33,7 +34,9 @@ const updateProfile = async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized", success: false });
   }
+
   const user = req.user;
+
   try {
     const { displayName, photo } = req.body;
 
@@ -41,6 +44,7 @@ const updateProfile = async (req, res) => {
       where: { id: user.id },
       data: { displayName, photo },
     });
+    
     const payload = {
       id: userRecord.id,
       email: userRecord.email,
