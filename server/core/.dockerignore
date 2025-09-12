@@ -1,0 +1,10 @@
+node_modules
+bruno_collection
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md
+.env.example
+.gitignore
+.DS_Store
+Thumbs.db

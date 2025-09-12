@@ -54,6 +54,7 @@ app.listen(process.env.PORT, async () => {
     await prisma.$connect();
     console.log(`Server running on port ${process.env.PORT}`);
   } catch (err) {
+    console.error("Error connecting to the database:", err);
     process.exit(1);
   }
 });

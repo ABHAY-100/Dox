@@ -1,4 +1,9 @@
-const { Octokit } = require("octokit");
+let Octokit;
+
+(async () => {
+  const { Octokit: OctokitModule } = await import("octokit");
+  Octokit = OctokitModule;
+})();
 
 const { decrypt } = require("../utils/crypto.cjs");
 
