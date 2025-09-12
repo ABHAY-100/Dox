@@ -27,7 +27,15 @@ router.get(
 // Trigger Github OAuth
 router.get(
   "/github",
-  passport.authenticate("github", { scope: ["user:email"] })
+  passport.authenticate("github", {
+    scope: [
+      "user:email",
+      "read:user",
+      "repo",
+      "workflow",
+      "repo:status",
+    ],
+  })
 );
 
 // Github OAuth callback

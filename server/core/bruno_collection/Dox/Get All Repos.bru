@@ -1,23 +1,17 @@
 meta {
   name: Get All Repos
   type: http
-  seq: 7
+  seq: 9
 }
 
 get {
   url: {{base_url}}/api/v1/core/repos
-  body: json
+  body: none
   auth: inherit
 }
 
 headers {
   Cookie: access_token=""
-}
-
-body:json {
-  {
-    "repoId":""
-  }
 }
 
 settings {
