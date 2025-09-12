@@ -43,15 +43,10 @@ const getAllRepos = async (req, res) => {
       auth: githubAccessToken,
     });
 
-    // Get authenticated user to determine ownership
-    const { data: githubUser } = await octokit.rest.users.getAuthenticated();
-
-    // Fetch repositories
     const { data: allRepos } = await octokit.rest.repos.listForAuthenticatedUser({
-      visibility: "all",
-      per_page: 100,
-      sort: "updated",
-      direction: "desc"
+      sort: 'updated',
+      direction: 'desc',
+      per_page: 100
     });
 
     if (!allRepos || allRepos.length === 0) {
@@ -62,15 +57,10 @@ const getAllRepos = async (req, res) => {
       });
     }
 
-    // Filter to only include personal repos owned by the user
-    const personalRepos = allRepos.filter(repo => {
-      return repo.owner.login === githubUser.login;
-    });
-
     return res.status(200).json({
-      repos: personalRepos,
+      repos: allRepos,
       success: true,
-      message: "Personal repositories fetched successfully",
+      message: "All accessible repositories fetched successfully",
     });
   } catch (error) {
     console.error("Error fetching repositories:", error);
@@ -205,7 +195,7 @@ const disconnectRepo = async (req, res) => {
       message: "Repository disconnected successfully",
     });
   } catch (error) {
-    console.log(error);
+    console.error("Error disconnecting repository: ", error);
     return res
       .status(500)
       .json({ message: "Error disconnecting repository!", success: false });
@@ -240,7 +230,7 @@ const getConnectedRepos = async (req, res) => {
       message: "Connected repositories fetched successfully",
     });
   } catch (error) {
-    console.error("Error fetching connected repositories:", error);
+    console.error("Error fetching connected repositories: ", error);
     return res
       .status(500)
       .json({
