@@ -25,15 +25,25 @@ model User {
   githubTokenAuthTag String?
 
   repos UserRepo[]
+
+  @@index([googleId])
+  @@index([githubId])
+  @@index([refreshToken])
+  @@index([provider])
+  @@index([email])
 }
 
 model UserRepo {
-  id        String   @id @default(cuid())
-  name      String
-  userId    String
-  repoId    String
-  fullName  String
-  private   Boolean
+  id       String  @id @default(cuid())
+  userId   String
+  repoId   String
+  owner    String
+  repoName String
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([repoId])
+  @@index([userId, repoId])
+  @@unique([userId, repoId])
 }

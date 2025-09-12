@@ -43,23 +43,37 @@ const getAllRepos = async (req, res) => {
       auth: githubAccessToken,
     });
 
-    const repos = await octokit.rest.repos.listForAuthenticatedUser({
+    // Get authenticated user to determine ownership
+    const { data: githubUser } = await octokit.rest.users.getAuthenticated();
+
+    // Fetch repositories
+    const { data: allRepos } = await octokit.rest.repos.listForAuthenticatedUser({
       visibility: "all",
+      per_page: 100,
+      sort: "updated",
+      direction: "desc"
     });
 
-
-    if (!repos || repos.data.length === 0) {
-      return res
-        .status(200)
-        .json({ message: "No repositories found!", success: true });
+    if (!allRepos || allRepos.length === 0) {
+      return res.status(200).json({ 
+        repos: [], 
+        success: true,
+        message: "No repositories found!" 
+      });
     }
 
+    // Filter to only include personal repos owned by the user
+    const personalRepos = allRepos.filter(repo => {
+      return repo.owner.login === githubUser.login;
+    });
+
     return res.status(200).json({
-      repos: repos.data,
+      repos: personalRepos,
       success: true,
-      message: "Repositories fetched successfully",
+      message: "Personal repositories fetched successfully",
     });
   } catch (error) {
+    console.error("Error fetching repositories:", error);
     return res
       .status(500)
       .json({ message: "Error fetching repositories!", success: false });
@@ -121,21 +135,22 @@ const connectRepo = async (req, res) => {
       });
     }
 
-    await prisma.userRepo.create({
+    const savedRepo = await prisma.userRepo.create({
       data: {
         userId: userRecord.id,
         repoId: repo.data.id.toString(),
-        name: repo.data.name,
-        fullName: repo.data.full_name,
-        private: repo.data.private
+        repoName: repo.data.name,
+        owner: repo.data.owner.login
       },
     });
 
     return res.status(200).json({
+      repo: savedRepo,
+      success: true,
       message: "Repository connected successfully",
-      success: true
     });
   } catch (error) {
+    console.error("Error connecting repository:", error);
     return res
       .status(500)
       .json({ message: "Error connecting to repository!", success: false });
@@ -216,8 +231,7 @@ const getConnectedRepos = async (req, res) => {
     const repos = await prisma.userRepo.findMany({
       where: {
         userId: userRecord.id,
-      },
-      orderBy: { updatedAt: "desc" },
+      }
     });
 
     return res.status(200).json({
@@ -226,7 +240,7 @@ const getConnectedRepos = async (req, res) => {
       message: "Connected repositories fetched successfully",
     });
   } catch (error) {
-    console.log(error);
+    console.error("Error fetching connected repositories:", error);
     return res
       .status(500)
       .json({
