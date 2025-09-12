@@ -21,9 +21,10 @@ router.get(
 // Google OAuth callback
 router.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login" }),
+  passport.authenticate("google", { failureRedirect: process.env.FRONTEND_URL }),
   oauthCallback
 );
+
 // Trigger Github OAuth
 router.get(
   "/github",
@@ -41,7 +42,7 @@ router.get(
 // Github OAuth callback
 router.get(
   "/github/callback",
-  passport.authenticate("github", { failureRedirect: "/login" }),
+  passport.authenticate("github", { failureRedirect: process.env.FRONTEND_URL }),
   oauthCallback
 );
 
