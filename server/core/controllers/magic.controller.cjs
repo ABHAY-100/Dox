@@ -9,7 +9,6 @@ const { createClient } = require("redis");
 const redis = createClient({ url: process.env.REDIS_URL });
 redis.connect().catch(console.error);
 
-// Nodemailer transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -19,6 +18,10 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 });
+
+transporter.verify()
+  .then(() => {/* Connection Successful*/})
+  .catch(error => console.error('Failed to establish SMTP connection:', error));
 
 const sendMagicLinkEmail = async (email, link) => {
   const mailOptions = {
@@ -30,7 +33,7 @@ const sendMagicLinkEmail = async (email, link) => {
       <p>Click the link below to securely log in to your <strong>Dox</strong> account:</p>
       <p><a href="${link}">Log in to Dox</a></p>
       <p>This link will expire in <strong>10 minutes</strong>.</p>
-      <p>If you didn’t request this, you can safely ignore this email.</p>
+      <p>If you didn't request this, you can safely ignore this email.</p>
       <strong><i>the zero-day team</i></strong>
     `,
   };
