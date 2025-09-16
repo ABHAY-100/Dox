@@ -10,14 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal } from "lucide-react";
-
-type RepoCardProps = {
-  name: string;
-  description?: string | null;
-  url?: string;
-  cloneUrl?: string;
-  isPrivate?: boolean;
-};
+import { RepoCardProps } from "@/types";
 
 export default function RepoCard({ name, description, url, isPrivate = false}: RepoCardProps) {
   return (

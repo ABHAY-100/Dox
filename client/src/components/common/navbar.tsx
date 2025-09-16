@@ -2,10 +2,12 @@
 
 import React, { useState } from "react";
 import ProfileSection from "./profileSection";
+import { useUser } from "@/hooks/getProfile";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 
 const Navbar = () => {
+  const { data: user } = useUser();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const toggleMobileMenu = () => {
@@ -14,20 +16,21 @@ const Navbar = () => {
 
   const menuItems = [
     { name: "Home", href: "#" },
+    { name: "Documentation", href: "#" },
     { name: "About", href: "#" },
-    { name: "Contact", href: "#" },
   ];
 
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-
           <div className="flex-shrink-0">
-            <h1 className="text-2xl font-black text-gray-900">Dox</h1>
+            <h1 className="text-2xl font-black text-gray-900 cursor-pointer"
+            onClick={() => window.location.href = '/dashboard'}
+            >Dox</h1>
           </div>
 
-          <div className="hidden md:flex md:items-center md:space-x-8 border-4 p-1 rounded-3xl">
+          <div className="hidden md:flex md:items-center md:space-x-8 p-1 rounded-3xl">
             {menuItems.map((item) => (
               <a
                 key={item.name}
@@ -41,8 +44,8 @@ const Navbar = () => {
           <div className="flex items-center space-x-4">
             <div className="hidden md:flex">
               <ProfileSection
-                name="name"
-                avatarUrl="https://github.com/shadcn.png"
+                name={user?.displayName || user?.name}
+                avatarUrl={user?.photo}
               />
             </div>
             <div className="md:hidden">
@@ -68,15 +71,15 @@ const Navbar = () => {
                 <a
                   key={item.name}
                   href={item.href}
-                  className="block px-3 py-2 text-base font-medium text-gray-900 hover:text-blue-600"
+                  className="block px-3 py-2 text-base font-medium text-gray-900 hover:text-purple-600"
                 >
                   {item.name}
                 </a>
               ))}
               <div className="pt-4 border-t">
                 <ProfileSection
-                    name="name"
-                  avatarUrl="https://github.com/shadcn.png"
+                  name={user?.displayName || user?.name}
+                  avatarUrl={user?.photo || "https://github.com/shadcn.png"}
                 />
               </div>
             </div>

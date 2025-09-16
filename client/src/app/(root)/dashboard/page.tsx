@@ -1,14 +1,12 @@
 import React from 'react'
-import Navbar from '@/components/common/navbar'
 import DashboardLayout from '@/components/common/dashboardLayout'
+import Navbar from '@/components/common/navbar'
 
 const page = () => {
   return (
     <div>
       <Navbar />
       <DashboardLayout />
-      <main>
-      </main>
     </div>
   )
 }
