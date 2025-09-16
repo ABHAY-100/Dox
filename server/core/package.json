@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.cjs",
   "scripts": {
-    "start": "node server.cjs",
+    "start": "npx prisma generate && npx prisma db push && node server.cjs",
     "dev": "nodemon server.cjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

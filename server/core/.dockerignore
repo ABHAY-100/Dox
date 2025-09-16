@@ -8,3 +8,5 @@ README.md
 .gitignore
 .DS_Store
 Thumbs.db
+init-db
+logs
