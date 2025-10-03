@@ -39,6 +39,7 @@ model UserRepo {
   repoId   String
   owner    String
   repoName String
+  branch   String
 
   user User @relation(fields: [userId], references: [id])
 

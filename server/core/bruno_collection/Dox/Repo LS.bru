@@ -1,13 +1,18 @@
 meta {
-  name: List All Repos
+  name: Repo LS
   type: http
-  seq: 9
+  seq: 14
 }
 
 get {
-  url: {{base_url}}/api/v1/core/repos
+  url: {{base_url}}/api/v1/core/:owner/:repo/docs
   body: none
   auth: inherit
+}
+
+params:path {
+  repo: 
+  owner: 
 }
 
 headers {

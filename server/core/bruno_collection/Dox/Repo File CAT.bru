@@ -1,0 +1,25 @@
+meta {
+  name: Repo File CAT
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{base_url}}/api/v1/core/:owner/:repo/docs/:filename
+  body: none
+  auth: inherit
+}
+
+params:path {
+  filename: 
+  repo: 
+  owner: 
+}
+
+headers {
+  Cookie: access_token=""
+}
+
+settings {
+  encodeUrl: true
+}
